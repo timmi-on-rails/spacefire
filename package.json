@@ -12,6 +12,7 @@
   "devDependencies": {
     "@parcel/transformer-elm": "^2.8.3",
     "elm": "^0.19.1-5",
+    "elm-canvas": "^2.2.4",
     "parcel": "^2.8.3"
   }
 }
