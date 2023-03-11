@@ -1,0 +1,17 @@
+{
+  "name": "space-fire",
+  "version": "1.0.0",
+  "description": "This is a game about a firefighter in space.",
+  "source": "src/index.html",
+  "scripts": {
+    "start": "parcel",
+    "build": "parcel build"
+  },
+  "author": "Tom Scheler",
+  "license": "MIT",
+  "devDependencies": {
+    "@parcel/transformer-elm": "^2.8.3",
+    "elm": "^0.19.1-5",
+    "parcel": "^2.8.3"
+  }
+}
