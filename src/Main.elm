@@ -35,4 +35,4 @@ view : Model -> Html Msg
 view _ =
     toHtml ( 500, 500 )
         []
-        [ shapes [ fill Color.red ] [ rect ( 0, 0 ) 500 500 ] ]
+        [ shapes [ fill Color.black ] [ rect ( 0, 0 ) 500 500 ] ]
