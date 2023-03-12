@@ -57,7 +57,7 @@ update msg model =
                     ( model, Cmd.none )
 
         Tick delta ->
-            ( { model | x = model.x + model.vx * delta }, Cmd.none )
+            ( { model | x = max -250 (min 250 (model.x + model.vx * delta)) }, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -71,7 +71,7 @@ view model =
 
 renderItems : Model -> List Renderable
 renderItems model =
-    [ shapes [ fill Color.red ] [ rect ( model.x - 25, 400 ) 50 50 ] ]
+    [ shapes [ fill Color.red ] [ rect ( 250 + model.x - 25, 400 ) 50 50 ] ]
 
 
 subscriptions : Model -> Sub Msg
