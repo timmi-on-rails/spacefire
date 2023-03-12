@@ -67,18 +67,18 @@ update msg model =
                     Keyboard.update k model.pressedKeys
 
                 vx =
-                    (if List.member ArrowLeft pressedKeys then
-                        -0.3
+                    List.sum
+                        [ if List.member ArrowLeft pressedKeys then
+                            -0.3
 
-                     else
-                        0
-                    )
-                        + (if List.member ArrowRight pressedKeys then
+                          else
+                            0
+                        , if List.member ArrowRight pressedKeys then
                             0.3
 
-                           else
+                          else
                             0
-                          )
+                        ]
               in
               { model
                 | pressedKeys = pressedKeys
