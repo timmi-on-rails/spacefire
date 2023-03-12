@@ -20,6 +20,11 @@ main =
         }
 
 
+canvasSize : ( number, number )
+canvasSize =
+    ( 500, 750 )
+
+
 type alias Ship =
     { x : Float
     , vx : Float
@@ -94,7 +99,14 @@ update msg model =
                         ship =
                             model.ship
                     in
-                    { ship | x = max -250 (min 250 (ship.x + ship.vx * delta)) }
+                    { ship
+                        | x =
+                            let
+                                ( w, _ ) =
+                                    canvasSize
+                            in
+                            max (-0.5 * w) (min (0.5 * w) (ship.x + ship.vx * delta))
+                    }
               }
             , Cmd.none
             )
@@ -102,16 +114,29 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    toHtml ( 500, 500 )
+    toHtml canvasSize
         []
-        (shapes [ fill Color.black ] [ rect ( 0, 0 ) 500 500 ]
+        (shapes [ fill Color.black ]
+            [ let
+                ( w, h ) =
+                    canvasSize
+              in
+              rect ( 0, 0 ) w h
+            ]
             :: renderItems model
         )
 
 
 renderItems : Model -> List Renderable
 renderItems model =
-    [ shapes [ fill Color.red ] [ rect ( 250 + model.ship.x - 0.5 * model.ship.width, 400 ) model.ship.width model.ship.height ] ]
+    [ shapes [ fill Color.red ]
+        [ let
+            ( w, h ) =
+                canvasSize
+          in
+          rect ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, 0.8 * h ) model.ship.width model.ship.height
+        ]
+    ]
 
 
 subscriptions : Model -> Sub Msg
