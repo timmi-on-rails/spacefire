@@ -105,7 +105,7 @@ update msg model =
                                 ( w, _ ) =
                                     canvasSize
                             in
-                            max (-0.5 * w) (min (0.5 * w) (ship.x + ship.vx * delta))
+                            max (-0.5 * w + 0.5 * ship.width) (min (0.5 * w - 0.5 * ship.width) (ship.x + ship.vx * delta))
                     }
               }
             , Cmd.none
