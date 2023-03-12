@@ -20,17 +20,28 @@ main =
         }
 
 
-type alias Model =
+type alias Ship =
     { x : Float
     , vx : Float
+    , width : Float
+    , height : Float
+    }
+
+
+type alias Model =
+    { ship : Ship
     , pressedKeys : List Key
     }
 
 
 init : () -> ( Model, Cmd msg )
 init _ =
-    ( { x = 0
-      , vx = 0
+    ( { ship =
+            { x = 0
+            , vx = 0
+            , width = 50
+            , height = 50
+            }
       , pressedKeys = []
       }
     , Cmd.none
@@ -66,13 +77,27 @@ update msg model =
               in
               { model
                 | pressedKeys = pressedKeys
-                , vx = vx
+                , ship =
+                    let
+                        ship =
+                            model.ship
+                    in
+                    { ship | vx = vx }
               }
             , Cmd.none
             )
 
         Tick delta ->
-            ( { model | x = max -250 (min 250 (model.x + model.vx * delta)) }, Cmd.none )
+            ( { model
+                | ship =
+                    let
+                        ship =
+                            model.ship
+                    in
+                    { ship | x = max -250 (min 250 (ship.x + ship.vx * delta)) }
+              }
+            , Cmd.none
+            )
 
 
 view : Model -> Html Msg
@@ -86,7 +111,7 @@ view model =
 
 renderItems : Model -> List Renderable
 renderItems model =
-    [ shapes [ fill Color.red ] [ rect ( 250 + model.x - 25, 400 ) 50 50 ] ]
+    [ shapes [ fill Color.red ] [ rect ( 250 + model.ship.x - 0.5 * model.ship.width, 400 ) model.ship.width model.ship.height ] ]
 
 
 subscriptions : Model -> Sub Msg
