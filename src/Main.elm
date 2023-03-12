@@ -7,7 +7,7 @@ import Canvas.Settings exposing (..)
 import Canvas.Settings.Advanced exposing (..)
 import Color
 import Html exposing (Html)
-import Keyboard exposing (Key(..), RawKey)
+import Keyboard exposing (Key(..))
 
 
 main : Program () Model Msg
@@ -38,23 +38,38 @@ init _ =
 
 
 type Msg
-    = KeyDown RawKey
+    = KeyMsg Keyboard.Msg
     | Tick Float
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        KeyDown k ->
-            case Keyboard.anyKeyOriginal k of
-                Just ArrowLeft ->
-                    ( { model | vx = -0.1 }, Cmd.none )
+        KeyMsg k ->
+            ( let
+                pressedKeys =
+                    Keyboard.update k model.pressedKeys
 
-                Just ArrowRight ->
-                    ( { model | vx = 0.1 }, Cmd.none )
+                vx =
+                    (if List.member ArrowLeft pressedKeys then
+                        -0.3
 
-                _ ->
-                    ( model, Cmd.none )
+                     else
+                        0
+                    )
+                        + (if List.member ArrowRight pressedKeys then
+                            0.3
+
+                           else
+                            0
+                          )
+              in
+              { model
+                | pressedKeys = pressedKeys
+                , vx = vx
+              }
+            , Cmd.none
+            )
 
         Tick delta ->
             ( { model | x = max -250 (min 250 (model.x + model.vx * delta)) }, Cmd.none )
@@ -78,5 +93,5 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ onAnimationFrameDelta Tick
-        , Keyboard.downs KeyDown
+        , Sub.map KeyMsg Keyboard.subscriptions
         ]
