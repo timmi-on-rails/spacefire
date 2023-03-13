@@ -4,6 +4,7 @@
   "description": "This is a game about a firefighter in space.",
   "source": "src/index.html",
   "scripts": {
+    "elm": "elm",
     "start": "parcel",
     "build": "parcel build"
   },
