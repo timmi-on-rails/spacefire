@@ -26,8 +26,14 @@ canvasSize =
     ( 500, 750 )
 
 
+fireSize : ( number, number )
+fireSize =
+    ( 10, 10 )
+
+
 type alias Ship =
     { x : Float
+    , y : Float
     , vx : Float
     , width : Float
     , height : Float
@@ -44,6 +50,7 @@ type alias Model =
     , nextFireEta : Float
     , fires : List ( Float, Float )
     , missedFires : Int
+    , killedFires : Int
     , pressedKeys : List Key
     }
 
@@ -52,6 +59,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { ship =
             { x = 0
+            , y = 0.8 * Tuple.second canvasSize
             , vx = 0
             , width = 50
             , height = 50
@@ -60,6 +68,7 @@ init _ =
       , nextFireEta = 0
       , fires = []
       , missedFires = 0
+      , killedFires = 0
       , pressedKeys = []
       }
     , Random.generate InitSeed Random.independentSeed
@@ -114,6 +123,7 @@ update msg model =
                 |> resetFireEta
                 |> moveFires delta
                 |> handleMissedFires
+                |> handleCollisions
             , Cmd.none
             )
 
@@ -184,6 +194,41 @@ handleMissedFires model =
     { model | fires = newFires, missedFires = List.length model.fires - List.length newFires }
 
 
+handleCollisions : Model -> Model
+handleCollisions model =
+    let
+        ( fw, fh ) =
+            fireSize
+
+        noCollision f =
+            Tuple.second f
+                + 0.5
+                * fh
+                <= model.ship.y
+                || Tuple.second f
+                - 0.5
+                * fh
+                >= model.ship.y
+                + model.ship.height
+                || Tuple.first f
+                + 0.5
+                * fw
+                <= model.ship.x
+                - 0.5
+                * model.ship.width
+                || Tuple.first f
+                - 0.5
+                * fw
+                >= model.ship.x
+                + 0.5
+                * model.ship.width
+
+        newFires =
+            model.fires |> List.filter noCollision
+    in
+    { model | fires = newFires, killedFires = List.length model.fires - List.length newFires }
+
+
 decrementFireEta : Float -> Model -> Model
 decrementFireEta delta model =
     { model | nextFireEta = model.nextFireEta - delta }
@@ -227,10 +272,10 @@ renderItems : Model -> List Renderable
 renderItems model =
     [ shapes [ fill Color.red ]
         [ let
-            ( w, h ) =
+            ( w, _ ) =
                 canvasSize
           in
-          rect ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, 0.8 * h ) model.ship.width model.ship.height
+          rect ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, model.ship.y ) model.ship.width model.ship.height
         ]
     , shapes [ fill Color.orange ]
         (fireShapes model)
@@ -242,11 +287,14 @@ fireShapes model =
     let
         ( w, _ ) =
             canvasSize
+
+        ( fw, fh ) =
+            fireSize
     in
     model.fires
         |> List.map
             (\f ->
-                rect ( 0.5 * w + Tuple.first f - 0.5 * 10, Tuple.second f ) 10 10
+                rect ( 0.5 * w + Tuple.first f - 0.5 * fw, Tuple.second f ) fw fh
             )
 
 
