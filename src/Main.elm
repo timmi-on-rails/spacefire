@@ -90,8 +90,12 @@ type Msg
     = KeyMsg Keyboard.Msg
     | Tick Float
     | InitSeed Random.Seed
-    | ShipTextureLoaded (Maybe Texture)
-    | FireTextureLoaded (Maybe Texture)
+    | TextureLoaded GameTexture (Maybe Texture)
+
+
+type GameTexture
+    = FireTexture
+    | ShipTexture
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -143,17 +147,28 @@ update msg model =
         InitSeed s ->
             ( { model | seed = s } |> resetFireEta, Cmd.none )
 
-        ShipTextureLoaded (Just t) ->
-            ( { model | shipTexture = Success t }, Cmd.none )
+        TextureLoaded k mt ->
+            ( loadTexture model k mt, Cmd.none )
 
-        ShipTextureLoaded Nothing ->
-            ( { model | shipTexture = Failure }, Cmd.none )
 
-        FireTextureLoaded (Just t) ->
-            ( { model | fireTexture = Success t }, Cmd.none )
+loadTexture : Model -> GameTexture -> Maybe Texture -> Model
+loadTexture model k mt =
+    case mt of
+        Just t ->
+            case k of
+                FireTexture ->
+                    { model | fireTexture = Success t }
 
-        FireTextureLoaded Nothing ->
-            ( { model | fireTexture = Failure }, Cmd.none )
+                ShipTexture ->
+                    { model | shipTexture = Success t }
+
+        Nothing ->
+            case k of
+                FireTexture ->
+                    { model | fireTexture = Failure }
+
+                ShipTexture ->
+                    { model | shipTexture = Failure }
 
 
 moveFires : Float -> Model -> Model
@@ -280,8 +295,8 @@ spawnFire model =
 
 textures : List (Texture.Source Msg)
 textures =
-    [ Texture.loadFromImageUrl "./ship.png" ShipTextureLoaded
-    , Texture.loadFromImageUrl "./fire.png" FireTextureLoaded
+    [ Texture.loadFromImageUrl "./ship.png" (TextureLoaded ShipTexture)
+    , Texture.loadFromImageUrl "./fire.png" (TextureLoaded FireTexture)
     ]
 
 
