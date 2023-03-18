@@ -5,6 +5,7 @@ import Browser.Events exposing (onAnimationFrameDelta)
 import Canvas exposing (..)
 import Canvas.Settings exposing (..)
 import Canvas.Settings.Advanced exposing (..)
+import Canvas.Texture as Texture exposing (Texture)
 import Color
 import Html exposing (Html)
 import Keyboard exposing (Key(..))
@@ -28,7 +29,7 @@ canvasSize =
 
 fireSize : ( number, number )
 fireSize =
-    ( 10, 10 )
+    ( 25, 25 )
 
 
 type alias Ship =
@@ -52,7 +53,15 @@ type alias Model =
     , missedFires : Int
     , killedFires : Int
     , pressedKeys : List Key
+    , shipTexture : Load Texture
+    , fireTexture : Load Texture
     }
+
+
+type Load a
+    = Loading
+    | Success a
+    | Failure
 
 
 init : () -> ( Model, Cmd Msg )
@@ -70,6 +79,8 @@ init _ =
       , missedFires = 0
       , killedFires = 0
       , pressedKeys = []
+      , shipTexture = Loading
+      , fireTexture = Loading
       }
     , Random.generate InitSeed Random.independentSeed
     )
@@ -79,6 +90,8 @@ type Msg
     = KeyMsg Keyboard.Msg
     | Tick Float
     | InitSeed Random.Seed
+    | ShipTextureLoaded (Maybe Texture)
+    | FireTextureLoaded (Maybe Texture)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -129,6 +142,18 @@ update msg model =
 
         InitSeed s ->
             ( { model | seed = s } |> resetFireEta, Cmd.none )
+
+        ShipTextureLoaded (Just t) ->
+            ( { model | shipTexture = Success t }, Cmd.none )
+
+        ShipTextureLoaded Nothing ->
+            ( { model | shipTexture = Failure }, Cmd.none )
+
+        FireTextureLoaded (Just t) ->
+            ( { model | fireTexture = Success t }, Cmd.none )
+
+        FireTextureLoaded Nothing ->
+            ( { model | fireTexture = Failure }, Cmd.none )
 
 
 moveFires : Float -> Model -> Model
@@ -253,9 +278,20 @@ spawnFire model =
         model
 
 
+textures : List (Texture.Source Msg)
+textures =
+    [ Texture.loadFromImageUrl "./ship.png" ShipTextureLoaded
+    , Texture.loadFromImageUrl "./fire.png" FireTextureLoaded
+    ]
+
+
 view : Model -> Html Msg
 view model =
-    toHtml canvasSize
+    toHtmlWith
+        { width = Tuple.first canvasSize
+        , height = Tuple.second canvasSize
+        , textures = textures
+        }
         []
         (shapes [ fill Color.black ]
             [ let
@@ -270,31 +306,44 @@ view model =
 
 renderItems : Model -> List Renderable
 renderItems model =
-    [ shapes [ fill Color.red ]
-        [ let
-            ( w, _ ) =
-                canvasSize
-          in
-          rect ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, model.ship.y ) model.ship.width model.ship.height
-        ]
-    , shapes [ fill Color.orange ]
-        (fireShapes model)
-    ]
+    (case model.shipTexture of
+        Failure ->
+            shapes [] [ rect ( 0, 0 ) 0 0 ]
+
+        Success s ->
+            let
+                ( w, _ ) =
+                    canvasSize
+            in
+            texture [] ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, model.ship.y ) s
+
+        Loading ->
+            shapes [] [ rect ( 0, 0 ) 0 0 ]
+    )
+        :: fireShapes model
 
 
-fireShapes : Model -> List Shape
+fireShapes : Model -> List Renderable
 fireShapes model =
     let
         ( w, _ ) =
             canvasSize
 
-        ( fw, fh ) =
+        ( fw, _ ) =
             fireSize
     in
     model.fires
         |> List.map
             (\f ->
-                rect ( 0.5 * w + Tuple.first f - 0.5 * fw, Tuple.second f ) fw fh
+                case model.fireTexture of
+                    Failure ->
+                        shapes [] [ rect ( 0, 0 ) 0 0 ]
+
+                    Success s ->
+                        texture [] ( 0.5 * w + Tuple.first f - 0.5 * fw, Tuple.second f ) s
+
+                    Loading ->
+                        shapes [] [ rect ( 0, 0 ) 0 0 ]
             )
 
 
