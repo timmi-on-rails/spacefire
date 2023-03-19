@@ -1,14 +1,13 @@
 module Main exposing (..)
 
 import Browser
-import Browser.Events exposing (onAnimationFrameDelta)
-import Canvas exposing (..)
-import Canvas.Settings exposing (..)
-import Canvas.Settings.Advanced exposing (..)
-import Canvas.Texture as Texture exposing (Texture)
+import Browser.Events
+import Canvas
+import Canvas.Settings
+import Canvas.Texture
 import Color
-import Html exposing (Html)
-import Keyboard exposing (Key(..))
+import Html
+import Keyboard
 import Random
 
 
@@ -52,9 +51,9 @@ type alias Model =
     , fires : List ( Float, Float )
     , missedFires : Int
     , killedFires : Int
-    , pressedKeys : List Key
-    , shipTexture : Load Texture
-    , fireTexture : Load Texture
+    , pressedKeys : List Keyboard.Key
+    , shipTexture : Load Canvas.Texture.Texture
+    , fireTexture : Load Canvas.Texture.Texture
     }
 
 
@@ -90,7 +89,7 @@ type Msg
     = KeyMsg Keyboard.Msg
     | Tick Float
     | InitSeed Random.Seed
-    | TextureLoaded (Model -> Load Texture -> Model) (Maybe Texture)
+    | TextureLoaded (Model -> Load Canvas.Texture.Texture -> Model) (Maybe Canvas.Texture.Texture)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -103,12 +102,12 @@ update msg model =
 
                 vx =
                     List.sum
-                        [ if List.member ArrowLeft pressedKeys then
+                        [ if List.member Keyboard.ArrowLeft pressedKeys then
                             -0.3
 
                           else
                             0
-                        , if List.member ArrowRight pressedKeys then
+                        , if List.member Keyboard.ArrowRight pressedKeys then
                             0.3
 
                           else
@@ -146,7 +145,7 @@ update msg model =
             ( loadTexture model k mt, Cmd.none )
 
 
-loadTexture : Model -> (Model -> Load Texture -> Model) -> Maybe Texture -> Model
+loadTexture : Model -> (Model -> Load Canvas.Texture.Texture -> Model) -> Maybe Canvas.Texture.Texture -> Model
 loadTexture model k mt =
     case mt of
         Just t ->
@@ -278,52 +277,52 @@ spawnFire model =
         model
 
 
-textures : List (Texture.Source Msg)
+textures : List (Canvas.Texture.Source Msg)
 textures =
-    [ Texture.loadFromImageUrl "./ship.png" (TextureLoaded (\model load -> { model | shipTexture = load }))
-    , Texture.loadFromImageUrl "./fire.png" (TextureLoaded (\model load -> { model | fireTexture = load }))
+    [ Canvas.Texture.loadFromImageUrl "./ship.png" (TextureLoaded (\model load -> { model | shipTexture = load }))
+    , Canvas.Texture.loadFromImageUrl "./fire.png" (TextureLoaded (\model load -> { model | fireTexture = load }))
     ]
 
 
-view : Model -> Html Msg
+view : Model -> Html.Html Msg
 view model =
-    toHtmlWith
+    Canvas.toHtmlWith
         { width = Tuple.first canvasSize
         , height = Tuple.second canvasSize
         , textures = textures
         }
         []
-        (shapes [ fill Color.black ]
+        (Canvas.shapes [ Canvas.Settings.fill Color.black ]
             [ let
                 ( w, h ) =
                     canvasSize
               in
-              rect ( 0, 0 ) w h
+              Canvas.rect ( 0, 0 ) w h
             ]
             :: renderItems model
         )
 
 
-renderItems : Model -> List Renderable
+renderItems : Model -> List Canvas.Renderable
 renderItems model =
     (case model.shipTexture of
         Failure ->
-            shapes [] [ rect ( 0, 0 ) 0 0 ]
+            Canvas.shapes [] [ Canvas.rect ( 0, 0 ) 0 0 ]
 
         Success s ->
             let
                 ( w, _ ) =
                     canvasSize
             in
-            texture [] ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, model.ship.y ) s
+            Canvas.texture [] ( 0.5 * w + model.ship.x - 0.5 * model.ship.width, model.ship.y ) s
 
         Loading ->
-            shapes [] [ rect ( 0, 0 ) 0 0 ]
+            Canvas.shapes [] [ Canvas.rect ( 0, 0 ) 0 0 ]
     )
         :: fireShapes model
 
 
-fireShapes : Model -> List Renderable
+fireShapes : Model -> List Canvas.Renderable
 fireShapes model =
     let
         ( w, _ ) =
@@ -337,13 +336,13 @@ fireShapes model =
             (\f ->
                 case model.fireTexture of
                     Failure ->
-                        shapes [] [ rect ( 0, 0 ) 0 0 ]
+                        Canvas.shapes [] [ Canvas.rect ( 0, 0 ) 0 0 ]
 
                     Success s ->
-                        texture [] ( 0.5 * w + Tuple.first f - 0.5 * fw, Tuple.second f ) s
+                        Canvas.texture [] ( 0.5 * w + Tuple.first f - 0.5 * fw, Tuple.second f ) s
 
                     Loading ->
-                        shapes [] [ rect ( 0, 0 ) 0 0 ]
+                        Canvas.shapes [] [ Canvas.rect ( 0, 0 ) 0 0 ]
             )
 
 
@@ -359,6 +358,6 @@ step generator model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ onAnimationFrameDelta Tick
+        [ Browser.Events.onAnimationFrameDelta Tick
         , Sub.map KeyMsg Keyboard.subscriptions
         ]
