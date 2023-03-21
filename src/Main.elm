@@ -7,6 +7,8 @@ import Canvas.Settings
 import Canvas.Texture
 import Color
 import Html
+import Html.Attributes
+import Html.Events
 import Keyboard
 import Random
 
@@ -23,7 +25,7 @@ main =
 
 canvasSize : ( number, number )
 canvasSize =
-    ( 500, 750 )
+    ( 500, 600 )
 
 
 fireSize : ( number, number )
@@ -34,7 +36,6 @@ fireSize =
 type alias Ship =
     { x : Float
     , y : Float
-    , vx : Float
     , width : Float
     , height : Float
     }
@@ -52,6 +53,7 @@ type alias Model =
     , missedFires : Int
     , killedFires : Int
     , pressedKeys : List Keyboard.Key
+    , pressedButtons : List Button
     , shipTexture : Load Canvas.Texture.Texture
     , fireTexture : Load Canvas.Texture.Texture
     }
@@ -68,7 +70,6 @@ init _ =
     ( { ship =
             { x = 0
             , y = 0.8 * Tuple.second canvasSize
-            , vx = 0
             , width = 50
             , height = 50
             }
@@ -78,6 +79,7 @@ init _ =
       , missedFires = 0
       , killedFires = 0
       , pressedKeys = []
+      , pressedButtons = []
       , shipTexture = Loading
       , fireTexture = Loading
       }
@@ -90,41 +92,25 @@ type Msg
     | Tick Float
     | InitSeed Random.Seed
     | TextureLoaded (Model -> Load Canvas.Texture.Texture -> Model) (Maybe Canvas.Texture.Texture)
+    | MouseMsg (MouseMsg Button)
+
+
+type Button
+    = Left
+    | Right
+
+
+type MouseMsg a
+    = Up a
+    | Down a
+    | Leave a
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         KeyMsg k ->
-            ( let
-                pressedKeys =
-                    Keyboard.update k model.pressedKeys
-
-                vx =
-                    List.sum
-                        [ if List.member Keyboard.ArrowLeft pressedKeys then
-                            -0.3
-
-                          else
-                            0
-                        , if List.member Keyboard.ArrowRight pressedKeys then
-                            0.3
-
-                          else
-                            0
-                        ]
-              in
-              { model
-                | pressedKeys = pressedKeys
-                , ship =
-                    let
-                        ship =
-                            model.ship
-                    in
-                    { ship | vx = vx }
-              }
-            , Cmd.none
-            )
+            ( { model | pressedKeys = Keyboard.update k model.pressedKeys }, Cmd.none )
 
         Tick delta ->
             ( model
@@ -143,6 +129,44 @@ update msg model =
 
         TextureLoaded k mt ->
             ( loadTexture model k mt, Cmd.none )
+
+        MouseMsg x ->
+            ( { model | pressedButtons = updateButtons x model.pressedButtons }, Cmd.none )
+
+
+updateButtons : MouseMsg a -> List a -> List a
+updateButtons mouseMsg buttons =
+    case mouseMsg of
+        Up x ->
+            List.filter ((/=) x) buttons
+
+        Leave x ->
+            List.filter ((/=) x) buttons
+
+        Down x ->
+            x :: List.filter ((/=) x) buttons
+
+
+shipVx : Model -> Float
+shipVx model =
+    List.sum
+        [ if
+            List.member Keyboard.ArrowLeft model.pressedKeys
+                || List.member Left model.pressedButtons
+          then
+            -0.3
+
+          else
+            0
+        , if
+            List.member Keyboard.ArrowRight model.pressedKeys
+                || List.member Right model.pressedButtons
+          then
+            0.3
+
+          else
+            0
+        ]
 
 
 loadTexture : Model -> (Model -> Load Canvas.Texture.Texture -> Model) -> Maybe Canvas.Texture.Texture -> Model
@@ -182,7 +206,7 @@ moveShip delta model =
                         ( w, _ ) =
                             canvasSize
                     in
-                    max (-0.5 * w + 0.5 * ship.width) (min (0.5 * w - 0.5 * ship.width) (ship.x + ship.vx * delta))
+                    max (-0.5 * w + 0.5 * ship.width) (min (0.5 * w - 0.5 * ship.width) (ship.x + shipVx model * delta))
             }
     }
 
@@ -286,6 +310,35 @@ textures =
 
 view : Model -> Html.Html Msg
 view model =
+    Html.div []
+        [ renderCanvas model
+        , Html.div []
+            [ Html.button
+                (Html.Attributes.style "width" "50%"
+                    :: Html.Attributes.style "height" "50px"
+                    :: mouseEvents MouseMsg Left
+                )
+                [ Html.text "←" ]
+            , Html.button
+                (Html.Attributes.style "width" "50%"
+                    :: Html.Attributes.style "height" "50px"
+                    :: mouseEvents MouseMsg Right
+                )
+                [ Html.text "→" ]
+            ]
+        ]
+
+
+mouseEvents : (MouseMsg a -> msg) -> a -> List (Html.Attribute msg)
+mouseEvents f a =
+    [ Html.Events.onMouseDown (f (Down a))
+    , Html.Events.onMouseUp (f (Up a))
+    , Html.Events.onMouseLeave (f (Leave a))
+    ]
+
+
+renderCanvas : Model -> Html.Html Msg
+renderCanvas model =
     Canvas.toHtmlWith
         { width = Tuple.first canvasSize
         , height = Tuple.second canvasSize
