@@ -9,6 +9,7 @@ import Color
 import Html
 import Html.Attributes
 import Html.Events
+import Json.Decode
 import Keyboard
 import Random
 
@@ -334,6 +335,9 @@ mouseEvents f a =
     [ Html.Events.onMouseDown (f (Down a))
     , Html.Events.onMouseUp (f (Up a))
     , Html.Events.onMouseLeave (f (Leave a))
+    , Html.Events.on "touchstart" (Json.Decode.succeed (f (Down a)))
+    , Html.Events.on "touchend" (Json.Decode.succeed (f (Up a)))
+    , Html.Events.on "touchcancel" (Json.Decode.succeed (f (Up a)))
     ]
 
 
