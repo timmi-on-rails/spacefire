@@ -9,9 +9,8 @@ import Color
 import Game
 import Html
 import Html.Attributes
-import Html.Events
-import Json.Decode
 import Keyboard
+import Mouse
 import Random
 
 
@@ -63,13 +62,7 @@ type Msg
     | Tick Float
     | InitSeed Random.Seed
     | TextureLoaded String (EnvBuilder -> Canvas.Texture.Texture -> EnvBuilder) (Maybe Canvas.Texture.Texture)
-    | MouseMsg (MouseMsg Game.Button)
-
-
-type MouseMsg a
-    = Up a
-    | Down a
-    | Leave a
+    | MouseMsg (Mouse.MouseMsg Game.Button)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -122,11 +115,11 @@ update msg model =
         MouseMsg x ->
             case model of
                 Initialized (Ok env) ->
-                    ( tryRunGame { env | pressedButtons = updateButtons x env.pressedButtons }, Cmd.none )
+                    ( tryRunGame { env | pressedButtons = Mouse.update x env.pressedButtons }, Cmd.none )
 
                 Running game ->
                     ( game
-                        |> Game.updateEnv (\env -> { env | pressedButtons = updateButtons x env.pressedButtons })
+                        |> Game.updateEnv (\env -> { env | pressedButtons = Mouse.update x env.pressedButtons })
                         |> Running
                     , Cmd.none
                     )
@@ -172,19 +165,6 @@ tryInitEnv envBuilder =
             Initializing envBuilder
 
 
-updateButtons : MouseMsg a -> List a -> List a
-updateButtons mouseMsg buttons =
-    case mouseMsg of
-        Up x ->
-            List.filter ((/=) x) buttons
-
-        Leave x ->
-            List.filter ((/=) x) buttons
-
-        Down x ->
-            x :: List.filter ((/=) x) buttons
-
-
 textures : List (Canvas.Texture.Source Msg)
 textures =
     [ Canvas.Texture.loadFromImageUrl "./ship.png" (TextureLoaded "ship" (\envBuilder texture -> { envBuilder | shipTexture = Just texture }))
@@ -200,28 +180,17 @@ view model =
             [ Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: mouseEvents MouseMsg Game.Left
+                    :: Mouse.events MouseMsg Game.Left
                 )
                 [ Html.text "←" ]
             , Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: mouseEvents MouseMsg Game.Right
+                    :: Mouse.events MouseMsg Game.Right
                 )
                 [ Html.text "→" ]
             ]
         ]
-
-
-mouseEvents : (MouseMsg a -> msg) -> a -> List (Html.Attribute msg)
-mouseEvents f a =
-    [ Html.Events.onMouseDown (f (Down a))
-    , Html.Events.onMouseUp (f (Up a))
-    , Html.Events.onMouseLeave (f (Leave a))
-    , Html.Events.on "touchstart" (Json.Decode.succeed (f (Down a)))
-    , Html.Events.on "touchend" (Json.Decode.succeed (f (Up a)))
-    , Html.Events.on "touchcancel" (Json.Decode.succeed (f (Up a)))
-    ]
 
 
 renderCanvas : Model -> Html.Html Msg
