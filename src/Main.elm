@@ -81,15 +81,9 @@ update msg model =
                     ( tryRunGame { env | pressedKeys = Keyboard.update k env.pressedKeys }, Cmd.none )
 
                 Running game ->
-                    ( Running
-                        { game
-                            | env =
-                                let
-                                    env =
-                                        game.env
-                                in
-                                { env | pressedKeys = Keyboard.update k env.pressedKeys }
-                        }
+                    ( game
+                        |> Game.updateEnv (\env -> { env | pressedKeys = Keyboard.update k env.pressedKeys })
+                        |> Running
                     , Cmd.none
                     )
 
@@ -131,15 +125,9 @@ update msg model =
                     ( tryRunGame { env | pressedButtons = updateButtons x env.pressedButtons }, Cmd.none )
 
                 Running game ->
-                    ( Running
-                        { game
-                            | env =
-                                let
-                                    env =
-                                        game.env
-                                in
-                                { env | pressedButtons = updateButtons x env.pressedButtons }
-                        }
+                    ( game
+                        |> Game.updateEnv (\env -> { env | pressedButtons = updateButtons x env.pressedButtons })
+                        |> Running
                     , Cmd.none
                     )
 

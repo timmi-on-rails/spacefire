@@ -1,4 +1,4 @@
-module Game exposing (Button(..), Env, Game, init, render, update)
+module Game exposing (Button(..), Env, Game, init, render, update, updateEnv)
 
 import Canvas
 import Canvas.Texture
@@ -28,14 +28,15 @@ type alias Ship =
     }
 
 
-type alias Game =
-    { env : Env
-    , ship : Ship
-    , nextFireEta : Float
-    , fires : List ( Float, Float )
-    , missedFires : Int
-    , killedFires : Int
-    }
+type Game
+    = Game
+        { env : Env
+        , ship : Ship
+        , nextFireEta : Float
+        , fires : List ( Float, Float )
+        , missedFires : Int
+        , killedFires : Int
+        }
 
 
 type Button
@@ -45,18 +46,19 @@ type Button
 
 init : ( Int, Int ) -> Env -> Game
 init ( _, h ) env =
-    { env = env
-    , ship =
-        { x = 0
-        , y = 0.8 * toFloat h
-        , width = 50
-        , height = 50
+    Game
+        { env = env
+        , ship =
+            { x = 0
+            , y = 0.8 * toFloat h
+            , width = 50
+            , height = 50
+            }
+        , nextFireEta = 0
+        , fires = []
+        , missedFires = 0
+        , killedFires = 0
         }
-    , nextFireEta = 0
-    , fires = []
-    , missedFires = 0
-    , killedFires = 0
-    }
         |> resetFireEta
 
 
@@ -72,8 +74,13 @@ update canvasSize delta game =
         |> handleCollisions
 
 
+updateEnv : (Env -> Env) -> Game -> Game
+updateEnv f (Game game) =
+    Game { game | env = f game.env }
+
+
 shipVx : Game -> Float
-shipVx game =
+shipVx (Game game) =
     List.sum
         [ if
             List.member Keyboard.ArrowLeft game.env.pressedKeys
@@ -95,7 +102,7 @@ shipVx game =
 
 
 moveFires : Float -> Game -> Game
-moveFires delta game =
+moveFires delta (Game game) =
     let
         move : ( Float, Float ) -> ( Float, Float )
         move f =
@@ -104,26 +111,27 @@ moveFires delta game =
         newFires =
             game.fires |> List.map move
     in
-    { game | fires = newFires }
+    Game { game | fires = newFires }
 
 
 moveShip : ( Int, Int ) -> Float -> Game -> Game
-moveShip ( w, _ ) delta game =
-    { game
-        | ship =
-            let
-                ship =
-                    game.ship
-            in
-            { ship
-                | x =
-                    max (-0.5 * toFloat w + 0.5 * ship.width) (min (0.5 * toFloat w - 0.5 * ship.width) (ship.x + shipVx game * delta))
-            }
-    }
+moveShip ( w, _ ) delta (Game game) =
+    Game
+        { game
+            | ship =
+                let
+                    ship =
+                        game.ship
+                in
+                { ship
+                    | x =
+                        max (-0.5 * toFloat w + 0.5 * ship.width) (min (0.5 * toFloat w - 0.5 * ship.width) (ship.x + shipVx (Game game) * delta))
+                }
+        }
 
 
 resetFireEta : Game -> Game
-resetFireEta game =
+resetFireEta (Game game) =
     if game.nextFireEta <= 0 then
         let
             g =
@@ -132,14 +140,14 @@ resetFireEta game =
             ( r, newEnv ) =
                 step g game.env
         in
-        { game | env = newEnv, nextFireEta = r }
+        Game { game | env = newEnv, nextFireEta = r }
 
     else
-        game
+        Game game
 
 
 handleMissedFires : ( Int, Int ) -> Game -> Game
-handleMissedFires ( _, h ) game =
+handleMissedFires ( _, h ) (Game game) =
     let
         cond f =
             Tuple.second f < toFloat h
@@ -147,11 +155,11 @@ handleMissedFires ( _, h ) game =
         newFires =
             game.fires |> List.filter cond
     in
-    { game | fires = newFires, missedFires = List.length game.fires - List.length newFires }
+    Game { game | fires = newFires, missedFires = List.length game.fires - List.length newFires }
 
 
 handleCollisions : Game -> Game
-handleCollisions game =
+handleCollisions (Game game) =
     let
         ( fw, fh ) =
             fireSize
@@ -182,16 +190,16 @@ handleCollisions game =
         newFires =
             game.fires |> List.filter noCollision
     in
-    { game | fires = newFires, killedFires = List.length game.fires - List.length newFires }
+    Game { game | fires = newFires, killedFires = List.length game.fires - List.length newFires }
 
 
 decrementFireEta : Float -> Game -> Game
-decrementFireEta delta game =
-    { game | nextFireEta = game.nextFireEta - delta }
+decrementFireEta delta (Game game) =
+    Game { game | nextFireEta = game.nextFireEta - delta }
 
 
 spawnFire : ( Int, Int ) -> Game -> Game
-spawnFire ( w, _ ) game =
+spawnFire ( w, _ ) (Game game) =
     if game.nextFireEta <= 0 then
         let
             g =
@@ -200,20 +208,20 @@ spawnFire ( w, _ ) game =
             ( r, newEnv ) =
                 step g game.env
         in
-        { game | env = newEnv, fires = ( r, 0 ) :: game.fires }
+        Game { game | env = newEnv, fires = ( r, 0 ) :: game.fires }
 
     else
-        game
+        Game game
 
 
 render : ( Int, Int ) -> Game -> List Canvas.Renderable
-render ( w, h ) game =
+render ( w, h ) (Game game) =
     Canvas.texture [] ( 0.5 * toFloat w + game.ship.x - 0.5 * game.ship.width, game.ship.y ) game.env.shipTexture
-        :: fireShapes ( w, h ) game
+        :: fireShapes ( w, h ) (Game game)
 
 
 fireShapes : ( Int, Int ) -> Game -> List Canvas.Renderable
-fireShapes ( w, _ ) game =
+fireShapes ( w, _ ) (Game game) =
     let
         ( fw, _ ) =
             fireSize
