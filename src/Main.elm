@@ -7,7 +7,7 @@ import Canvas.Settings
 import Canvas.Texture
 import Color
 import Env exposing (Env)
-import Game
+import Game exposing (Game)
 import Html
 import Html.Attributes
 import Keyboard
@@ -32,7 +32,7 @@ main =
 type Model
     = Initializing EnvBuilder
     | Initialized (Result String Env)
-    | Running Game.Game
+    | Running Game
 
 
 type alias EnvBuilder =
