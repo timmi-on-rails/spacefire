@@ -30,17 +30,9 @@ main =
 
 
 type Model
-    = Initializing EnvBuilder
+    = Initializing Env.Builder
     | Initialized (Result String Env)
     | Running Game
-
-
-type alias EnvBuilder =
-    { seed : Maybe Random.Seed
-    , shipTexture : Maybe Canvas.Texture.Texture
-    , fireTexture : Maybe Canvas.Texture.Texture
-    , canvasSize : { width : Int, height : Int }
-    }
 
 
 init : () -> ( Model, Cmd Msg )
@@ -59,7 +51,7 @@ type Msg
     = KeyMsg Keyboard.Msg
     | Tick Float
     | InitSeed Random.Seed
-    | TextureLoaded String (EnvBuilder -> Canvas.Texture.Texture -> EnvBuilder) (Maybe Canvas.Texture.Texture)
+    | TextureLoaded String (Env.Builder -> Canvas.Texture.Texture -> Env.Builder) (Maybe Canvas.Texture.Texture)
     | MouseMsg (Mouse.MouseMsg Env.Button)
 
 
@@ -135,33 +127,14 @@ tryRunGame env =
         Ok env |> Initialized
 
 
-tryInitEnv : EnvBuilder -> Model
+tryInitEnv : Env.Builder -> Model
 tryInitEnv envBuilder =
-    case envBuilder.shipTexture of
-        Just shipTexture ->
-            case envBuilder.fireTexture of
-                Just fireTexture ->
-                    case envBuilder.seed of
-                        Just seed ->
-                            Initialized
-                                (Ok
-                                    { seed = seed
-                                    , fireTexture = fireTexture
-                                    , shipTexture = shipTexture
-                                    , pressedKeys = []
-                                    , pressedButtons = []
-                                    , canvasSize = envBuilder.canvasSize
-                                    }
-                                )
-
-                        Nothing ->
-                            Initializing envBuilder
-
-                Nothing ->
-                    Initializing envBuilder
+    case Env.fromBuilder envBuilder of
+        Just env ->
+            Ok env |> Initialized
 
         Nothing ->
-            Initializing envBuilder
+            envBuilder |> Initializing
 
 
 textures : List (Canvas.Texture.Source Msg)

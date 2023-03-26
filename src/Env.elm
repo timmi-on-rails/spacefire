@@ -1,8 +1,16 @@
-module Env exposing (Button(..), Env, step)
+module Env exposing (Builder, Button(..), Env, fromBuilder, step)
 
 import Canvas.Texture
 import Keyboard
 import Random
+
+
+type alias Builder =
+    { seed : Maybe Random.Seed
+    , shipTexture : Maybe Canvas.Texture.Texture
+    , fireTexture : Maybe Canvas.Texture.Texture
+    , canvasSize : { width : Int, height : Int }
+    }
 
 
 type alias Env =
@@ -27,3 +35,30 @@ step generator env =
             env.seed |> Random.step generator
     in
     ( a, { env | seed = nextSeed } )
+
+
+fromBuilder : Builder -> Maybe Env
+fromBuilder builder =
+    case builder.shipTexture of
+        Just shipTexture ->
+            case builder.fireTexture of
+                Just fireTexture ->
+                    case builder.seed of
+                        Just seed ->
+                            Just
+                                { seed = seed
+                                , fireTexture = fireTexture
+                                , shipTexture = shipTexture
+                                , pressedKeys = []
+                                , pressedButtons = []
+                                , canvasSize = builder.canvasSize
+                                }
+
+                        Nothing ->
+                            Nothing
+
+                Nothing ->
+                    Nothing
+
+        Nothing ->
+            Nothing
