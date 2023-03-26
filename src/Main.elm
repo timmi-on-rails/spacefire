@@ -5,7 +5,7 @@ import Browser.Events
 import Canvas
 import Canvas.Settings
 import Color
-import Env exposing (Env)
+import Env
 import Game exposing (Game)
 import Html
 import Html.Attributes
@@ -28,7 +28,6 @@ main =
 
 type Model
     = Initializing Env.Builder
-    | Initialized (Result String Env)
     | Running Game
 
 
@@ -48,13 +47,7 @@ update msg model =
         EnvMsg envMsg ->
             case model of
                 Initializing envBuilder ->
-                    envBuilder |> Env.updateB envMsg |> Tuple.mapFirst tryInitEnv
-
-                Initialized (Ok env) ->
-                    env |> Env.update envMsg |> Tuple.mapFirst tryRunGame
-
-                Initialized (Err _) ->
-                    ( model, Cmd.none )
+                    envBuilder |> Env.updateB envMsg |> Tuple.mapFirst tryRunGame
 
                 Running game ->
                     Game.getEnv game
@@ -66,33 +59,25 @@ update msg model =
                 Initializing _ ->
                     ( model, Cmd.none )
 
-                Initialized _ ->
-                    ( model, Cmd.none )
-
                 Running game ->
                     ( Running (Game.update delta game), Cmd.none )
 
 
-tryRunGame : Env -> Model
-tryRunGame env =
-    if List.length env.pressedButtons > 0 || List.length env.pressedKeys > 0 then
-        Game.init env |> Running
+tryRunGame : Env.Builder -> Model
+tryRunGame builder =
+    case Env.fromBuilder builder of
+        Env.Loading ->
+            Initializing builder
 
-    else
-        Ok env |> Initialized
+        Env.Success env ->
+            if List.length builder.pressedButtons > 0 || List.length builder.pressedKeys > 0 then
+                Game.init env |> Running
 
+            else
+                Initializing builder
 
-tryInitEnv : Env.Builder -> Model
-tryInitEnv envBuilder =
-    case Env.fromBuilder envBuilder of
-        Ok (Just env) ->
-            Ok env |> Initialized
-
-        Ok Nothing ->
-            envBuilder |> Initializing
-
-        Err err ->
-            Initialized (Err err)
+        Env.Failure _ ->
+            Initializing builder
 
 
 view : Model -> Html.Html Msg
@@ -120,19 +105,21 @@ renderCanvas : Model -> Html.Html Msg
 renderCanvas model =
     case model of
         Initializing envBuilder ->
-            Canvas.toHtmlWith
-                { width = envBuilder.canvasSize.width
-                , height = envBuilder.canvasSize.height
-                , textures = Env.textures EnvMsg
-                }
-                []
-                [ Canvas.text [] ( 100, 100 ) "Initializing" ]
+            case Env.fromBuilder envBuilder of
+                Env.Loading ->
+                    Canvas.toHtmlWith
+                        { width = envBuilder.canvasSize.width
+                        , height = envBuilder.canvasSize.height
+                        , textures = Env.textures EnvMsg
+                        }
+                        []
+                        [ Canvas.text [] ( 100, 100 ) "Initializing" ]
 
-        Initialized (Ok _) ->
-            Html.text "Initialized"
+                Env.Success _ ->
+                    Html.text "Initialized"
 
-        Initialized (Err e) ->
-            Html.text e
+                Env.Failure err ->
+                    Html.text err
 
         Running game ->
             let
@@ -152,9 +139,6 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
         Initializing _ ->
-            Sub.none
-
-        Initialized _ ->
             Sub.map EnvMsg Env.subscriptions
 
         Running _ ->

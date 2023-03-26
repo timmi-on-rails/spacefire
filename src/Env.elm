@@ -1,4 +1,4 @@
-module Env exposing (Builder, Button(..), Env, Msg(..), fromBuilder, init, step, subscriptions, textures, update, updateB)
+module Env exposing (Builder, Button(..), Env, Load(..), Msg(..), fromBuilder, init, step, subscriptions, textures, update, updateB)
 
 import Canvas.Texture
 import Keyboard
@@ -8,10 +8,25 @@ import Random
 
 type alias Builder =
     { seed : Maybe Random.Seed
+    , pressedKeys : List Keyboard.Key
+    , pressedButtons : List Button
     , shipTexture : Load Canvas.Texture.Texture
     , fireTexture : Load Canvas.Texture.Texture
     , canvasSize : { width : Int, height : Int }
     }
+
+
+bindLoad : (a -> Load b) -> Load a -> Load b
+bindLoad f load =
+    case load of
+        Loading ->
+            Loading
+
+        Success s ->
+            f s
+
+        Failure err ->
+            Failure err
 
 
 type Load a
@@ -45,6 +60,8 @@ type Button
 init : () -> ( Builder, Cmd Msg )
 init _ =
     ( { seed = Nothing
+      , pressedKeys = []
+      , pressedButtons = []
       , fireTexture = Loading
       , shipTexture = Loading
       , canvasSize = { width = 500, height = 600 }
@@ -53,9 +70,25 @@ init _ =
     )
 
 
+updatePressedKeys : Keyboard.Msg -> { a | pressedKeys : List Keyboard.Key } -> { a | pressedKeys : List Keyboard.Key }
+updatePressedKeys k x =
+    { x | pressedKeys = Keyboard.update k x.pressedKeys }
+
+
+updatePressedButtons : Mouse.MouseMsg a -> { b | pressedButtons : List a } -> { b | pressedButtons : List a }
+updatePressedButtons m x =
+    { x | pressedButtons = Mouse.update m x.pressedButtons }
+
+
 updateB : Msg -> Builder -> ( Builder, Cmd msg )
 updateB msg builder =
     case msg of
+        KeyMsg k ->
+            ( updatePressedKeys k builder, Cmd.none )
+
+        MouseMsg m ->
+            ( updatePressedButtons m builder, Cmd.none )
+
         InitSeed s ->
             ( { builder | seed = Just s }, Cmd.none )
 
@@ -67,21 +100,15 @@ updateB msg builder =
                 Nothing ->
                     ( "failed to load texture " ++ name |> Failure |> u builder, Cmd.none )
 
-        KeyMsg _ ->
-            ( builder, Cmd.none )
-
-        MouseMsg _ ->
-            ( builder, Cmd.none )
-
 
 update : Msg -> Env -> ( Env, Cmd msg )
 update msg env =
     case msg of
         KeyMsg k ->
-            ( { env | pressedKeys = Keyboard.update k env.pressedKeys }, Cmd.none )
+            ( updatePressedKeys k env, Cmd.none )
 
-        MouseMsg x ->
-            ( { env | pressedButtons = Mouse.update x env.pressedButtons }, Cmd.none )
+        MouseMsg m ->
+            ( updatePressedButtons m env, Cmd.none )
 
         InitSeed _ ->
             ( env, Cmd.none )
@@ -106,38 +133,29 @@ step generator env =
     ( a, { env | seed = nextSeed } )
 
 
-fromBuilder : Builder -> Result String (Maybe Env)
+fromBuilder : Builder -> Load Env
 fromBuilder builder =
-    case builder.shipTexture of
-        Success shipTexture ->
-            case builder.fireTexture of
-                Success fireTexture ->
-                    case builder.seed of
-                        Just seed ->
-                            { seed = seed
-                            , fireTexture = fireTexture
-                            , shipTexture = shipTexture
-                            , pressedKeys = []
-                            , pressedButtons = []
-                            , canvasSize = builder.canvasSize
-                            }
-                                |> Just
-                                |> Ok
+    builder.shipTexture
+        |> bindLoad
+            (\shipTexture ->
+                builder.fireTexture
+                    |> bindLoad
+                        (\fireTexture ->
+                            case builder.seed of
+                                Just seed ->
+                                    Success
+                                        { seed = seed
+                                        , fireTexture = fireTexture
+                                        , shipTexture = shipTexture
+                                        , pressedKeys = builder.pressedKeys
+                                        , pressedButtons = builder.pressedButtons
+                                        , canvasSize = builder.canvasSize
+                                        }
 
-                        Nothing ->
-                            Ok Nothing
-
-                Loading ->
-                    Ok Nothing
-
-                Failure err ->
-                    Err err
-
-        Loading ->
-            Ok Nothing
-
-        Failure err ->
-            Err err
+                                Nothing ->
+                                    Loading
+                        )
+            )
 
 
 subscriptions : Sub Msg
