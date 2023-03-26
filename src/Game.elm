@@ -1,7 +1,7 @@
-module Game exposing (Button(..), Env, Game, getEnv, init, render, update, updateEnv)
+module Game exposing (Game, getEnv, init, render, update, updateEnv)
 
 import Canvas
-import Canvas.Texture
+import Env exposing (Env)
 import Keyboard
 import Random
 
@@ -9,16 +9,6 @@ import Random
 fireSize : ( Float, Float )
 fireSize =
     ( 25, 25 )
-
-
-type alias Env =
-    { seed : Random.Seed
-    , pressedKeys : List Keyboard.Key
-    , pressedButtons : List Button
-    , shipTexture : Canvas.Texture.Texture
-    , fireTexture : Canvas.Texture.Texture
-    , canvasSize : { width : Int, height : Int }
-    }
 
 
 type alias Ship =
@@ -38,11 +28,6 @@ type Game
         , missedFires : Int
         , killedFires : Int
         }
-
-
-type Button
-    = Left
-    | Right
 
 
 init : Env -> Game
@@ -90,7 +75,7 @@ shipVx (Game game) =
     List.sum
         [ if
             List.member Keyboard.ArrowLeft game.env.pressedKeys
-                || List.member Left game.env.pressedButtons
+                || List.member Env.Left game.env.pressedButtons
           then
             -0.3
 
@@ -98,7 +83,7 @@ shipVx (Game game) =
             0
         , if
             List.member Keyboard.ArrowRight game.env.pressedKeys
-                || List.member Right game.env.pressedButtons
+                || List.member Env.Right game.env.pressedButtons
           then
             0.3
 
@@ -147,7 +132,7 @@ resetFireEta (Game game) =
                 Random.float 1000 5000
 
             ( r, newEnv ) =
-                step g game.env
+                Env.step g game.env
         in
         Game { game | env = newEnv, nextFireEta = r }
 
@@ -218,7 +203,7 @@ spawnFire (Game game) =
                 Random.float (-0.5 * toFloat width) (0.5 * toFloat width)
 
             ( r, newEnv ) =
-                step g game.env
+                Env.step g game.env
         in
         Game { game | env = newEnv, fires = ( r, 0 ) :: game.fires }
 
@@ -247,12 +232,3 @@ fireShapes (Game game) =
     in
     game.fires
         |> List.map (\f -> Canvas.texture [] ( 0.5 * toFloat width + Tuple.first f - 0.5 * fw, Tuple.second f ) game.env.fireTexture)
-
-
-step : Random.Generator a -> Env -> ( a, Env )
-step generator env =
-    let
-        ( a, nextSeed ) =
-            env.seed |> Random.step generator
-    in
-    ( a, { env | seed = nextSeed } )

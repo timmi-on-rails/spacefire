@@ -6,6 +6,7 @@ import Canvas
 import Canvas.Settings
 import Canvas.Texture
 import Color
+import Env exposing (Env)
 import Game
 import Html
 import Html.Attributes
@@ -30,7 +31,7 @@ main =
 
 type Model
     = Initializing EnvBuilder
-    | Initialized (Result String Game.Env)
+    | Initialized (Result String Env)
     | Running Game.Game
 
 
@@ -59,7 +60,7 @@ type Msg
     | Tick Float
     | InitSeed Random.Seed
     | TextureLoaded String (EnvBuilder -> Canvas.Texture.Texture -> EnvBuilder) (Maybe Canvas.Texture.Texture)
-    | MouseMsg (Mouse.MouseMsg Game.Button)
+    | MouseMsg (Mouse.MouseMsg Env.Button)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -125,7 +126,7 @@ update msg model =
                     ( model, Cmd.none )
 
 
-tryRunGame : Game.Env -> Model
+tryRunGame : Env -> Model
 tryRunGame env =
     if List.length env.pressedButtons > 0 || List.length env.pressedKeys > 0 then
         Game.init env |> Running
@@ -178,13 +179,13 @@ view model =
             [ Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Game.Left
+                    :: Mouse.events MouseMsg Env.Left
                 )
                 [ Html.text "←" ]
             , Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Game.Right
+                    :: Mouse.events MouseMsg Env.Right
                 )
                 [ Html.text "→" ]
             ]
