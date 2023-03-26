@@ -1,4 +1,4 @@
-module Game exposing (Game, getEnv, init, render, update, updateEnv)
+module Game exposing (Game, getEnv, init, render, setEnv, update)
 
 import Canvas
 import Env exposing (Env)
@@ -65,9 +65,9 @@ getEnv (Game game) =
     game.env
 
 
-updateEnv : (Env -> Env) -> Game -> Game
-updateEnv f (Game game) =
-    Game { game | env = f game.env }
+setEnv : Game -> Env -> Game
+setEnv (Game game) env =
+    Game { game | env = env }
 
 
 shipVx : Game -> Float

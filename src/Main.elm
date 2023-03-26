@@ -4,15 +4,12 @@ import Browser
 import Browser.Events
 import Canvas
 import Canvas.Settings
-import Canvas.Texture
 import Color
 import Env exposing (Env)
 import Game exposing (Game)
 import Html
 import Html.Attributes
-import Keyboard
 import Mouse
-import Random
 
 
 main : Program () Model Msg
@@ -36,86 +33,44 @@ type Model
 
 
 init : () -> ( Model, Cmd Msg )
-init _ =
-    ( Initializing
-        { seed = Nothing
-        , fireTexture = Nothing
-        , shipTexture = Nothing
-        , canvasSize = { width = 500, height = 600 }
-        }
-    , Random.generate InitSeed Random.independentSeed
-    )
+init =
+    Env.init >> Tuple.mapBoth Initializing (Cmd.map EnvMsg)
 
 
 type Msg
-    = KeyMsg Keyboard.Msg
+    = EnvMsg Env.Msg
     | Tick Float
-    | InitSeed Random.Seed
-    | TextureLoaded String (Env.Builder -> Canvas.Texture.Texture -> Env.Builder) (Maybe Canvas.Texture.Texture)
-    | MouseMsg (Mouse.MouseMsg Env.Button)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        KeyMsg k ->
+        EnvMsg envMsg ->
             case model of
+                Initializing envBuilder ->
+                    envBuilder |> Env.updateB envMsg |> Tuple.mapFirst tryInitEnv
+
                 Initialized (Ok env) ->
-                    ( tryRunGame { env | pressedKeys = Keyboard.update k env.pressedKeys }, Cmd.none )
+                    env |> Env.update envMsg |> Tuple.mapFirst tryRunGame
+
+                Initialized (Err _) ->
+                    ( model, Cmd.none )
 
                 Running game ->
-                    ( game
-                        |> Game.updateEnv (\env -> { env | pressedKeys = Keyboard.update k env.pressedKeys })
-                        |> Running
-                    , Cmd.none
-                    )
-
-                _ ->
-                    ( model, Cmd.none )
+                    Game.getEnv game
+                        |> Env.update envMsg
+                        |> Tuple.mapFirst (Game.setEnv game >> Running)
 
         Tick delta ->
             case model of
+                Initializing _ ->
+                    ( model, Cmd.none )
+
+                Initialized _ ->
+                    ( model, Cmd.none )
+
                 Running game ->
                     ( Running (Game.update delta game), Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        InitSeed s ->
-            case model of
-                Initializing envBuilder ->
-                    ( tryInitEnv { envBuilder | seed = Just s }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
-
-        TextureLoaded name u mt ->
-            case mt of
-                Just t ->
-                    case model of
-                        Initializing envBuilder ->
-                            ( tryInitEnv (u envBuilder t), Cmd.none )
-
-                        _ ->
-                            ( model, Cmd.none )
-
-                Nothing ->
-                    ( Err ("failed to load texture " ++ name) |> Initialized, Cmd.none )
-
-        MouseMsg x ->
-            case model of
-                Initialized (Ok env) ->
-                    ( tryRunGame { env | pressedButtons = Mouse.update x env.pressedButtons }, Cmd.none )
-
-                Running game ->
-                    ( game
-                        |> Game.updateEnv (\env -> { env | pressedButtons = Mouse.update x env.pressedButtons })
-                        |> Running
-                    , Cmd.none
-                    )
-
-                _ ->
-                    ( model, Cmd.none )
 
 
 tryRunGame : Env -> Model
@@ -130,18 +85,14 @@ tryRunGame env =
 tryInitEnv : Env.Builder -> Model
 tryInitEnv envBuilder =
     case Env.fromBuilder envBuilder of
-        Just env ->
+        Ok (Just env) ->
             Ok env |> Initialized
 
-        Nothing ->
+        Ok Nothing ->
             envBuilder |> Initializing
 
-
-textures : List (Canvas.Texture.Source Msg)
-textures =
-    [ Canvas.Texture.loadFromImageUrl "./ship.png" (TextureLoaded "ship" (\envBuilder texture -> { envBuilder | shipTexture = Just texture }))
-    , Canvas.Texture.loadFromImageUrl "./fire.png" (TextureLoaded "fire" (\envBuilder texture -> { envBuilder | fireTexture = Just texture }))
-    ]
+        Err err ->
+            Initialized (Err err)
 
 
 view : Model -> Html.Html Msg
@@ -152,13 +103,13 @@ view model =
             [ Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Env.Left
+                    :: Mouse.events (Env.MouseMsg >> EnvMsg) Env.Left
                 )
                 [ Html.text "←" ]
             , Html.button
                 (Html.Attributes.style "width" "50%"
                     :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Env.Right
+                    :: Mouse.events (Env.MouseMsg >> EnvMsg) Env.Right
                 )
                 [ Html.text "→" ]
             ]
@@ -172,7 +123,7 @@ renderCanvas model =
             Canvas.toHtmlWith
                 { width = envBuilder.canvasSize.width
                 , height = envBuilder.canvasSize.height
-                , textures = textures
+                , textures = Env.textures EnvMsg
                 }
                 []
                 [ Canvas.text [] ( 100, 100 ) "Initializing" ]
@@ -200,14 +151,14 @@ renderCanvas model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
+        Initializing _ ->
+            Sub.none
+
         Initialized _ ->
-            Sub.map KeyMsg Keyboard.subscriptions
+            Sub.map EnvMsg Env.subscriptions
 
         Running _ ->
             Sub.batch
                 [ Browser.Events.onAnimationFrameDelta Tick
-                , Sub.map KeyMsg Keyboard.subscriptions
+                , Sub.map EnvMsg Env.subscriptions
                 ]
-
-        _ ->
-            Sub.none

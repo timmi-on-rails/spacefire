@@ -1,16 +1,23 @@
-module Env exposing (Builder, Button(..), Env, fromBuilder, step)
+module Env exposing (Builder, Button(..), Env, Msg(..), fromBuilder, init, step, subscriptions, textures, update, updateB)
 
 import Canvas.Texture
 import Keyboard
+import Mouse
 import Random
 
 
 type alias Builder =
     { seed : Maybe Random.Seed
-    , shipTexture : Maybe Canvas.Texture.Texture
-    , fireTexture : Maybe Canvas.Texture.Texture
+    , shipTexture : Load Canvas.Texture.Texture
+    , fireTexture : Load Canvas.Texture.Texture
     , canvasSize : { width : Int, height : Int }
     }
+
+
+type Load a
+    = Loading
+    | Success a
+    | Failure String
 
 
 type alias Env =
@@ -23,9 +30,71 @@ type alias Env =
     }
 
 
+type Msg
+    = KeyMsg Keyboard.Msg
+    | InitSeed Random.Seed
+    | TextureLoaded String (Builder -> Load Canvas.Texture.Texture -> Builder) (Maybe Canvas.Texture.Texture)
+    | MouseMsg (Mouse.MouseMsg Button)
+
+
 type Button
     = Left
     | Right
+
+
+init : () -> ( Builder, Cmd Msg )
+init _ =
+    ( { seed = Nothing
+      , fireTexture = Loading
+      , shipTexture = Loading
+      , canvasSize = { width = 500, height = 600 }
+      }
+    , Random.generate InitSeed Random.independentSeed
+    )
+
+
+updateB : Msg -> Builder -> ( Builder, Cmd msg )
+updateB msg builder =
+    case msg of
+        InitSeed s ->
+            ( { builder | seed = Just s }, Cmd.none )
+
+        TextureLoaded name u mt ->
+            case mt of
+                Just t ->
+                    ( u builder (Success t), Cmd.none )
+
+                Nothing ->
+                    ( "failed to load texture " ++ name |> Failure |> u builder, Cmd.none )
+
+        KeyMsg _ ->
+            ( builder, Cmd.none )
+
+        MouseMsg _ ->
+            ( builder, Cmd.none )
+
+
+update : Msg -> Env -> ( Env, Cmd msg )
+update msg env =
+    case msg of
+        KeyMsg k ->
+            ( { env | pressedKeys = Keyboard.update k env.pressedKeys }, Cmd.none )
+
+        MouseMsg x ->
+            ( { env | pressedButtons = Mouse.update x env.pressedButtons }, Cmd.none )
+
+        InitSeed _ ->
+            ( env, Cmd.none )
+
+        TextureLoaded _ _ _ ->
+            ( env, Cmd.none )
+
+
+textures : (Msg -> msg) -> List (Canvas.Texture.Source msg)
+textures f =
+    [ Canvas.Texture.loadFromImageUrl "./ship.png" (f << TextureLoaded "ship" (\envBuilder texture -> { envBuilder | shipTexture = texture }))
+    , Canvas.Texture.loadFromImageUrl "./fire.png" (f << TextureLoaded "fire" (\envBuilder texture -> { envBuilder | fireTexture = texture }))
+    ]
 
 
 step : Random.Generator a -> Env -> ( a, Env )
@@ -37,28 +106,40 @@ step generator env =
     ( a, { env | seed = nextSeed } )
 
 
-fromBuilder : Builder -> Maybe Env
+fromBuilder : Builder -> Result String (Maybe Env)
 fromBuilder builder =
     case builder.shipTexture of
-        Just shipTexture ->
+        Success shipTexture ->
             case builder.fireTexture of
-                Just fireTexture ->
+                Success fireTexture ->
                     case builder.seed of
                         Just seed ->
-                            Just
-                                { seed = seed
-                                , fireTexture = fireTexture
-                                , shipTexture = shipTexture
-                                , pressedKeys = []
-                                , pressedButtons = []
-                                , canvasSize = builder.canvasSize
-                                }
+                            { seed = seed
+                            , fireTexture = fireTexture
+                            , shipTexture = shipTexture
+                            , pressedKeys = []
+                            , pressedButtons = []
+                            , canvasSize = builder.canvasSize
+                            }
+                                |> Just
+                                |> Ok
 
                         Nothing ->
-                            Nothing
+                            Ok Nothing
 
-                Nothing ->
-                    Nothing
+                Loading ->
+                    Ok Nothing
 
-        Nothing ->
-            Nothing
+                Failure err ->
+                    Err err
+
+        Loading ->
+            Ok Nothing
+
+        Failure err ->
+            Err err
+
+
+subscriptions : Sub Msg
+subscriptions =
+    Sub.map KeyMsg Keyboard.subscriptions
