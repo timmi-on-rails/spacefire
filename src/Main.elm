@@ -24,11 +24,6 @@ main =
         }
 
 
-canvasSize : ( Int, Int )
-canvasSize =
-    ( 500, 600 )
-
-
 
 -- TODO: Threading seeds around is not super fun, so if you really need this, it is best to build your Generator like normal and then just step it all at once at the top of your program.
 
@@ -43,6 +38,7 @@ type alias EnvBuilder =
     { seed : Maybe Random.Seed
     , shipTexture : Maybe Canvas.Texture.Texture
     , fireTexture : Maybe Canvas.Texture.Texture
+    , canvasSize : { width : Int, height : Int }
     }
 
 
@@ -52,6 +48,7 @@ init _ =
         { seed = Nothing
         , fireTexture = Nothing
         , shipTexture = Nothing
+        , canvasSize = { width = 500, height = 600 }
         }
     , Random.generate InitSeed Random.independentSeed
     )
@@ -86,7 +83,7 @@ update msg model =
         Tick delta ->
             case model of
                 Running game ->
-                    ( Running (Game.update canvasSize delta game), Cmd.none )
+                    ( Running (Game.update delta game), Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -131,7 +128,7 @@ update msg model =
 tryRunGame : Game.Env -> Model
 tryRunGame env =
     if List.length env.pressedButtons > 0 || List.length env.pressedKeys > 0 then
-        Game.init canvasSize env |> Running
+        Game.init env |> Running
 
     else
         Ok env |> Initialized
@@ -152,6 +149,7 @@ tryInitEnv envBuilder =
                                     , shipTexture = shipTexture
                                     , pressedKeys = []
                                     , pressedButtons = []
+                                    , canvasSize = envBuilder.canvasSize
                                     }
                                 )
 
@@ -196,10 +194,10 @@ view model =
 renderCanvas : Model -> Html.Html Msg
 renderCanvas model =
     case model of
-        Initializing _ ->
+        Initializing envBuilder ->
             Canvas.toHtmlWith
-                { width = Tuple.first canvasSize
-                , height = Tuple.second canvasSize
+                { width = envBuilder.canvasSize.width
+                , height = envBuilder.canvasSize.height
                 , textures = textures
                 }
                 []
@@ -212,17 +210,16 @@ renderCanvas model =
             Html.text e
 
         Running game ->
+            let
+                { width, height } =
+                    Game.getEnv game |> .canvasSize
+            in
             Canvas.toHtml
-                canvasSize
+                ( width, height )
                 []
                 (Canvas.shapes [ Canvas.Settings.fill Color.black ]
-                    [ let
-                        ( w, h ) =
-                            canvasSize
-                      in
-                      Canvas.rect ( 0, 0 ) (toFloat w) (toFloat h)
-                    ]
-                    :: Game.render canvasSize game
+                    [ Canvas.rect ( 0, 0 ) (toFloat width) (toFloat height) ]
+                    :: Game.render game
                 )
 
 
