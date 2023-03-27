@@ -1,19 +1,42 @@
-module Env exposing (Builder, Button(..), Env, Load(..), Msg(..), fromBuilder, init, step, subscriptions, textures, update, updateB)
+module Env exposing
+    ( Builder(..)
+    , Button(..)
+    , Env
+    , Msg
+    , canvasSize
+    , init
+    , pressedButtons
+    , pressedKeys
+    , render
+    , step
+    , subscriptions
+    , textures
+    , update
+    , updateEnv
+    )
 
+import Canvas
 import Canvas.Texture
+import Html
+import Html.Attributes
 import Keyboard
 import Mouse
 import Random
 
 
-type alias Builder =
-    { seed : Maybe Random.Seed
-    , pressedKeys : List Keyboard.Key
-    , pressedButtons : List Button
-    , shipTexture : Load Canvas.Texture.Texture
-    , fireTexture : Load Canvas.Texture.Texture
-    , canvasSize : { width : Int, height : Int }
-    }
+type Builder
+    = Incomplete PartialEnv
+    | Done Env
+    | Failed String PartialEnv
+
+
+type PartialEnv
+    = PartialEnv
+        { seed : Maybe Random.Seed
+        , shipTexture : Load Canvas.Texture.Texture
+        , fireTexture : Load Canvas.Texture.Texture
+        , canvasSize : { width : Int, height : Int }
+        }
 
 
 bindLoad : (a -> Load b) -> Load a -> Load b
@@ -35,20 +58,21 @@ type Load a
     | Failure String
 
 
-type alias Env =
-    { seed : Random.Seed
-    , pressedKeys : List Keyboard.Key
-    , pressedButtons : List Button
-    , shipTexture : Canvas.Texture.Texture
-    , fireTexture : Canvas.Texture.Texture
-    , canvasSize : { width : Int, height : Int }
-    }
+type Env
+    = Env
+        { seed : Random.Seed
+        , pressedKeys : List Keyboard.Key
+        , pressedButtons : List Button
+        , shipTexture : Canvas.Texture.Texture
+        , fireTexture : Canvas.Texture.Texture
+        , canvasSize : { width : Int, height : Int }
+        }
 
 
 type Msg
     = KeyMsg Keyboard.Msg
     | InitSeed Random.Seed
-    | TextureLoaded String (Builder -> Load Canvas.Texture.Texture -> Builder) (Maybe Canvas.Texture.Texture)
+    | TextureLoaded String (PartialEnv -> Load Canvas.Texture.Texture -> PartialEnv) (Maybe Canvas.Texture.Texture)
     | MouseMsg (Mouse.MouseMsg Button)
 
 
@@ -60,12 +84,12 @@ type Button
 init : () -> ( Builder, Cmd Msg )
 init _ =
     ( { seed = Nothing
-      , pressedKeys = []
-      , pressedButtons = []
       , fireTexture = Loading
       , shipTexture = Loading
       , canvasSize = { width = 500, height = 600 }
       }
+        |> PartialEnv
+        |> Incomplete
     , Random.generate InitSeed Random.independentSeed
     )
 
@@ -80,84 +104,173 @@ updatePressedButtons m x =
     { x | pressedButtons = Mouse.update m x.pressedButtons }
 
 
-updateB : Msg -> Builder -> ( Builder, Cmd msg )
-updateB msg builder =
-    case msg of
-        KeyMsg k ->
-            ( updatePressedKeys k builder, Cmd.none )
+update : Msg -> Builder -> ( Builder, Cmd msg )
+update msg builder =
+    case builder of
+        Incomplete partialEnv ->
+            partialEnv |> updatePartial msg |> Tuple.mapFirst complete
 
-        MouseMsg m ->
-            ( updatePressedButtons m builder, Cmd.none )
+        Done env ->
+            updateEnv msg env |> Tuple.mapFirst Done
+
+        Failed err partialEnv ->
+            ( Failed err partialEnv, Cmd.none )
+
+
+updatePartial : Msg -> PartialEnv -> ( PartialEnv, Cmd msg )
+updatePartial msg (PartialEnv partialEnv) =
+    case msg of
+        KeyMsg _ ->
+            ( PartialEnv partialEnv, Cmd.none )
+
+        MouseMsg _ ->
+            ( PartialEnv partialEnv, Cmd.none )
 
         InitSeed s ->
-            ( { builder | seed = Just s }, Cmd.none )
+            ( PartialEnv { partialEnv | seed = Just s }, Cmd.none )
 
         TextureLoaded name u mt ->
             case mt of
                 Just t ->
-                    ( u builder (Success t), Cmd.none )
+                    ( u (PartialEnv partialEnv) (Success t), Cmd.none )
 
                 Nothing ->
-                    ( "failed to load texture " ++ name |> Failure |> u builder, Cmd.none )
+                    ( "failed to load texture " ++ name |> Failure |> u (PartialEnv partialEnv), Cmd.none )
 
 
-update : Msg -> Env -> ( Env, Cmd msg )
-update msg env =
+updateEnv : Msg -> Env -> ( Env, Cmd msg )
+updateEnv msg (Env env) =
     case msg of
         KeyMsg k ->
-            ( updatePressedKeys k env, Cmd.none )
+            ( updatePressedKeys k env |> Env, Cmd.none )
 
         MouseMsg m ->
-            ( updatePressedButtons m env, Cmd.none )
+            ( updatePressedButtons m env |> Env, Cmd.none )
 
         InitSeed _ ->
-            ( env, Cmd.none )
+            ( Env env, Cmd.none )
 
         TextureLoaded _ _ _ ->
-            ( env, Cmd.none )
+            ( Env env, Cmd.none )
 
 
-textures : (Msg -> msg) -> List (Canvas.Texture.Source msg)
-textures f =
-    [ Canvas.Texture.loadFromImageUrl "./ship.png" (f << TextureLoaded "ship" (\envBuilder texture -> { envBuilder | shipTexture = texture }))
-    , Canvas.Texture.loadFromImageUrl "./fire.png" (f << TextureLoaded "fire" (\envBuilder texture -> { envBuilder | fireTexture = texture }))
+loadTextures : (Msg -> msg) -> List (Canvas.Texture.Source msg)
+loadTextures f =
+    [ Canvas.Texture.loadFromImageUrl "./ship.png" (f << TextureLoaded "ship" (\(PartialEnv partialEnv) texture -> PartialEnv { partialEnv | shipTexture = texture }))
+    , Canvas.Texture.loadFromImageUrl "./fire.png" (f << TextureLoaded "fire" (\(PartialEnv partialEnv) texture -> PartialEnv { partialEnv | fireTexture = texture }))
     ]
 
 
+canvasSize : Env -> { width : Int, height : Int }
+canvasSize (Env env) =
+    env.canvasSize
+
+
+pressedKeys : Env -> List Keyboard.Key
+pressedKeys (Env env) =
+    env.pressedKeys
+
+
+pressedButtons : Env -> List Button
+pressedButtons (Env env) =
+    env.pressedButtons
+
+
+textures : Env -> { fireTexture : Canvas.Texture.Texture, shipTexture : Canvas.Texture.Texture }
+textures (Env env) =
+    { fireTexture = env.fireTexture, shipTexture = env.shipTexture }
+
+
 step : Random.Generator a -> Env -> ( a, Env )
-step generator env =
+step generator (Env env) =
     let
         ( a, nextSeed ) =
             env.seed |> Random.step generator
     in
-    ( a, { env | seed = nextSeed } )
+    ( a, Env { env | seed = nextSeed } )
 
 
-fromBuilder : Builder -> Load Env
-fromBuilder builder =
-    builder.shipTexture
+complete : PartialEnv -> Builder
+complete (PartialEnv partialEnv) =
+    partialEnv.shipTexture
         |> bindLoad
             (\shipTexture ->
-                builder.fireTexture
+                partialEnv.fireTexture
                     |> bindLoad
                         (\fireTexture ->
-                            case builder.seed of
+                            case partialEnv.seed of
                                 Just seed ->
-                                    Success
-                                        { seed = seed
-                                        , fireTexture = fireTexture
-                                        , shipTexture = shipTexture
-                                        , pressedKeys = builder.pressedKeys
-                                        , pressedButtons = builder.pressedButtons
-                                        , canvasSize = builder.canvasSize
-                                        }
+                                    { seed = seed
+                                    , fireTexture = fireTexture
+                                    , shipTexture = shipTexture
+                                    , pressedKeys = []
+                                    , pressedButtons = []
+                                    , canvasSize = partialEnv.canvasSize
+                                    }
+                                        |> Env
+                                        |> Success
 
                                 Nothing ->
                                     Loading
                         )
             )
+        |> toBuilder (PartialEnv partialEnv)
+
+
+toBuilder : PartialEnv -> Load Env -> Builder
+toBuilder partialEnv load =
+    case load of
+        Loading ->
+            Incomplete partialEnv
+
+        Success s ->
+            Done s
+
+        Failure err ->
+            Failed err partialEnv
 
 
 subscriptions : Sub Msg
 subscriptions =
     Sub.map KeyMsg Keyboard.subscriptions
+
+
+render : (Msg -> msg) -> Builder -> List Canvas.Renderable -> Html.Html msg
+render f builder lst =
+    Html.div []
+        [ renderCanvas f builder lst
+        , Html.div []
+            [ Html.button
+                (Html.Attributes.style "width" "50%"
+                    :: Html.Attributes.style "height" "50px"
+                    :: Mouse.events MouseMsg Left
+                )
+                [ Html.text "←" ]
+            , Html.button
+                (Html.Attributes.style "width" "50%"
+                    :: Html.Attributes.style "height" "50px"
+                    :: Mouse.events MouseMsg Right
+                )
+                [ Html.text "→" ]
+            ]
+            |> Html.map f
+        ]
+
+
+renderCanvas : (Msg -> msg) -> Builder -> List Canvas.Renderable -> Html.Html msg
+renderCanvas f builder lst =
+    case builder of
+        Done (Env env) ->
+            Canvas.toHtml ( env.canvasSize.width, env.canvasSize.height ) [] lst
+
+        Incomplete (PartialEnv partialEnv) ->
+            Canvas.toHtmlWith
+                { width = partialEnv.canvasSize.width
+                , height = partialEnv.canvasSize.height
+                , textures = loadTextures f
+                }
+                []
+                lst
+
+        Failed _ (PartialEnv partialEnv) ->
+            Canvas.toHtml ( partialEnv.canvasSize.width, partialEnv.canvasSize.height ) [] lst

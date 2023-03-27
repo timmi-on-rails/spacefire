@@ -8,8 +8,6 @@ import Color
 import Env
 import Game exposing (Game)
 import Html
-import Html.Attributes
-import Mouse
 
 
 main : Program () Model Msg
@@ -31,14 +29,14 @@ type Model
     | Running Game
 
 
-init : () -> ( Model, Cmd Msg )
-init =
-    Env.init >> Tuple.mapBoth Initializing (Cmd.map EnvMsg)
-
-
 type Msg
     = EnvMsg Env.Msg
     | Tick Float
+
+
+init : () -> ( Model, Cmd Msg )
+init =
+    Env.init >> Tuple.mapBoth Initializing (Cmd.map EnvMsg)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -46,12 +44,12 @@ update msg model =
     case msg of
         EnvMsg envMsg ->
             case model of
-                Initializing envBuilder ->
-                    envBuilder |> Env.updateB envMsg |> Tuple.mapFirst tryRunGame
+                Initializing builder ->
+                    builder |> Env.update envMsg |> Tuple.mapFirst tryRunGame
 
                 Running game ->
                     Game.getEnv game
-                        |> Env.update envMsg
+                        |> Env.updateEnv envMsg
                         |> Tuple.mapFirst (Game.setEnv game >> Running)
 
         Tick delta ->
@@ -65,70 +63,48 @@ update msg model =
 
 tryRunGame : Env.Builder -> Model
 tryRunGame builder =
-    case Env.fromBuilder builder of
-        Env.Loading ->
+    case builder of
+        Env.Incomplete _ ->
             Initializing builder
 
-        Env.Success env ->
-            if List.length builder.pressedButtons > 0 || List.length builder.pressedKeys > 0 then
-                Game.init env |> Running
+        Env.Done env ->
+            if
+                (env |> Env.pressedButtons |> List.length)
+                    > 0
+                    || (env |> Env.pressedKeys |> List.length)
+                    > 0
+            then
+                env |> Game.init |> Running
 
             else
                 Initializing builder
 
-        Env.Failure _ ->
+        Env.Failed _ _ ->
             Initializing builder
 
 
 view : Model -> Html.Html Msg
 view model =
-    Html.div []
-        [ renderCanvas model
-        , Html.div []
-            [ Html.button
-                (Html.Attributes.style "width" "50%"
-                    :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events (Env.MouseMsg >> EnvMsg) Env.Left
-                )
-                [ Html.text "←" ]
-            , Html.button
-                (Html.Attributes.style "width" "50%"
-                    :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events (Env.MouseMsg >> EnvMsg) Env.Right
-                )
-                [ Html.text "→" ]
-            ]
-        ]
-
-
-renderCanvas : Model -> Html.Html Msg
-renderCanvas model =
     case model of
-        Initializing envBuilder ->
-            case Env.fromBuilder envBuilder of
-                Env.Loading ->
-                    Canvas.toHtmlWith
-                        { width = envBuilder.canvasSize.width
-                        , height = envBuilder.canvasSize.height
-                        , textures = Env.textures EnvMsg
-                        }
-                        []
-                        [ Canvas.text [] ( 100, 100 ) "Initializing" ]
+        Initializing (Env.Incomplete partialEnv) ->
+            Env.render EnvMsg (Env.Incomplete partialEnv) [ Canvas.text [] ( 100, 100 ) "Initializing" ]
 
-                Env.Success _ ->
-                    Html.text "Initialized"
+        Initializing (Env.Done _) ->
+            Html.text "Initialized"
 
-                Env.Failure err ->
-                    Html.text err
+        Initializing (Env.Failed err _) ->
+            Html.text err
 
         Running game ->
             let
+                env =
+                    game |> Game.getEnv
+
                 { width, height } =
-                    Game.getEnv game |> .canvasSize
+                    env |> Env.canvasSize
             in
-            Canvas.toHtml
-                ( width, height )
-                []
+            Env.render EnvMsg
+                (Env.Done env)
                 (Canvas.shapes [ Canvas.Settings.fill Color.black ]
                     [ Canvas.rect ( 0, 0 ) (toFloat width) (toFloat height) ]
                     :: Game.render game

@@ -1,4 +1,11 @@
-module Game exposing (Game, getEnv, init, render, setEnv, update)
+module Game exposing
+    ( Game
+    , getEnv
+    , init
+    , render
+    , setEnv
+    , update
+    )
 
 import Canvas
 import Env exposing (Env)
@@ -36,7 +43,7 @@ init env =
         { env = env
         , ship =
             { x = 0
-            , y = 0.8 * toFloat env.canvasSize.height
+            , y = 0.8 * toFloat (env |> Env.canvasSize |> .height)
             , width = 50
             , height = 50
             }
@@ -74,16 +81,16 @@ shipVx : Game -> Float
 shipVx (Game game) =
     List.sum
         [ if
-            List.member Keyboard.ArrowLeft game.env.pressedKeys
-                || List.member Env.Left game.env.pressedButtons
+            (Env.pressedKeys game.env |> List.member Keyboard.ArrowLeft)
+                || (Env.pressedButtons game.env |> List.member Env.Left)
           then
             -0.3
 
           else
             0
         , if
-            List.member Keyboard.ArrowRight game.env.pressedKeys
-                || List.member Env.Right game.env.pressedButtons
+            (Env.pressedKeys game.env |> List.member Keyboard.ArrowRight)
+                || (Env.pressedButtons game.env |> List.member Env.Right)
           then
             0.3
 
@@ -115,7 +122,7 @@ moveShip delta (Game game) =
                         game.ship
 
                     { width } =
-                        game.env.canvasSize
+                        game.env |> Env.canvasSize
                 in
                 { ship
                     | x =
@@ -144,7 +151,7 @@ handleMissedFires : Game -> Game
 handleMissedFires (Game game) =
     let
         cond f =
-            Tuple.second f < toFloat game.env.canvasSize.height
+            Tuple.second f < toFloat (game.env |> Env.canvasSize |> .height)
 
         newFires =
             game.fires |> List.filter cond
@@ -197,7 +204,7 @@ spawnFire (Game game) =
     if game.nextFireEta <= 0 then
         let
             { width } =
-                game.env.canvasSize
+                game.env |> Env.canvasSize
 
             g =
                 Random.float (-0.5 * toFloat width) (0.5 * toFloat width)
@@ -215,9 +222,9 @@ render : Game -> List Canvas.Renderable
 render (Game game) =
     let
         { width } =
-            game.env.canvasSize
+            game.env |> Env.canvasSize
     in
-    Canvas.texture [] ( 0.5 * toFloat width + game.ship.x - 0.5 * game.ship.width, game.ship.y ) game.env.shipTexture
+    Canvas.texture [] ( 0.5 * toFloat width + game.ship.x - 0.5 * game.ship.width, game.ship.y ) (Env.textures game.env |> .shipTexture)
         :: fireShapes (Game game)
 
 
@@ -228,7 +235,7 @@ fireShapes (Game game) =
             fireSize
 
         { width } =
-            game.env.canvasSize
+            game.env |> Env.canvasSize
     in
     game.fires
-        |> List.map (\f -> Canvas.texture [] ( 0.5 * toFloat width + Tuple.first f - 0.5 * fw, Tuple.second f ) game.env.fireTexture)
+        |> List.map (\f -> Canvas.texture [] ( 0.5 * toFloat width + Tuple.first f - 0.5 * fw, Tuple.second f ) (Env.textures game.env |> .fireTexture))
