@@ -235,26 +235,26 @@ subscriptions =
     Sub.map KeyMsg Keyboard.subscriptions
 
 
-render : (Msg -> msg) -> Builder -> List Canvas.Renderable -> Html.Html msg
+render : (Msg -> msg) -> Builder -> List Canvas.Renderable -> List (Html.Html msg)
 render f builder lst =
-    Html.div []
-        [ renderCanvas f builder lst
-        , Html.div []
-            [ Html.button
-                (Html.Attributes.style "width" "50%"
-                    :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Left
-                )
-                [ Html.text "←" ]
-            , Html.button
-                (Html.Attributes.style "width" "50%"
-                    :: Html.Attributes.style "height" "50px"
-                    :: Mouse.events MouseMsg Right
-                )
-                [ Html.text "→" ]
-            ]
-            |> Html.map f
+    [ canvasStyle
+    , renderCanvas f builder lst
+    , Html.div []
+        [ Html.button
+            (Html.Attributes.style "width" "50%"
+                :: Html.Attributes.style "height" "50px"
+                :: Mouse.events MouseMsg Left
+            )
+            [ Html.text "←" ]
+        , Html.button
+            (Html.Attributes.style "width" "50%"
+                :: Html.Attributes.style "height" "50px"
+                :: Mouse.events MouseMsg Right
+            )
+            [ Html.text "→" ]
         ]
+        |> Html.map f
+    ]
 
 
 renderCanvas : (Msg -> msg) -> Builder -> List Canvas.Renderable -> Html.Html msg
@@ -274,3 +274,12 @@ renderCanvas f builder lst =
 
         Failed _ (PartialEnv partialEnv) ->
             Canvas.toHtml ( partialEnv.canvasSize.width, partialEnv.canvasSize.height ) [] lst
+
+
+canvasStyle : Html.Html msg
+canvasStyle =
+    Html.node "style"
+        []
+        [ Html.text
+            "canvas { border: 5px solid gray; margin: auto; display: block; }"
+        ]

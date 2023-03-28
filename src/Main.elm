@@ -12,7 +12,7 @@ import Html
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.document
         { init = init
         , view = view
         , update = update
@@ -83,32 +83,38 @@ tryRunGame builder =
             Initializing builder
 
 
-view : Model -> Html.Html Msg
+view : Model -> Browser.Document Msg
 view model =
-    case model of
-        Initializing (Env.Incomplete partialEnv) ->
-            Env.render EnvMsg (Env.Incomplete partialEnv) [ Canvas.text [] ( 100, 100 ) "Initializing" ]
+    let
+        body =
+            case model of
+                Initializing (Env.Incomplete partialEnv) ->
+                    Env.render EnvMsg (Env.Incomplete partialEnv) [ Canvas.text [] ( 100, 100 ) "Initializing" ]
 
-        Initializing (Env.Done _) ->
-            Html.text "Initialized"
+                Initializing (Env.Done _) ->
+                    [ Html.text "Initialized" ]
 
-        Initializing (Env.Failed err _) ->
-            Html.text err
+                Initializing (Env.Failed err _) ->
+                    [ Html.text err ]
 
-        Running game ->
-            let
-                env =
-                    game |> Game.getEnv
+                Running game ->
+                    let
+                        env =
+                            game |> Game.getEnv
 
-                { width, height } =
-                    env |> Env.canvasSize
-            in
-            Env.render EnvMsg
-                (Env.Done env)
-                (Canvas.shapes [ Canvas.Settings.fill Color.black ]
-                    [ Canvas.rect ( 0, 0 ) (toFloat width) (toFloat height) ]
-                    :: Game.render game
-                )
+                        { width, height } =
+                            env |> Env.canvasSize
+                    in
+                    Env.render EnvMsg
+                        (Env.Done env)
+                        (Canvas.shapes [ Canvas.Settings.fill Color.black ]
+                            [ Canvas.rect ( 0, 0 ) (toFloat width) (toFloat height) ]
+                            :: Game.render game
+                        )
+    in
+    { title = "Spacefire"
+    , body = Html.node "style" [] [ Html.text "body { padding: 0; margin:0; }" ] :: body
+    }
 
 
 subscriptions : Model -> Sub Msg
